@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os,re,sys,time,random,requests
+from datetime import datetime
 from playwright.sync_api import sync_playwright
 
 # --- 环境变量 ---
@@ -215,6 +216,19 @@ def get_due_date(page):
         log(f"❌ 获取Due Date失败: {e}")
     return "未知"
 
+def parse_due_date(text):
+    """将页面显示的日期 "28 Apr 2026" 转换为 YYYY-MM-DD 格式，供 Workflow 提取更新 Cron"""
+    if not text or text == "未知":
+        return None
+    match = re.search(r'(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})', text)
+    if match:
+        day, month_str, year = match.groups()
+        try:
+            return datetime.strptime(f"{day} {month_str} {year}", "%d %b %Y").strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+    return None
+
 def renew_service(page):
 
     try:
@@ -364,6 +378,11 @@ def main():
                 new_due = get_due_date(page)
                 log(f"📆 续费后到期时间：{new_due}")
                 status = "✅ 续期成功"
+
+            # 输出标准化到期时间，供 GitHub Actions 提取并自动更新 Cron
+            due_std = parse_due_date(new_due)
+            if due_std:
+                log(f"到期时间(标准): {due_std}")
 
             # 发送 Telegram 通知
             send_telegram_notification(status, old_due, new_due)

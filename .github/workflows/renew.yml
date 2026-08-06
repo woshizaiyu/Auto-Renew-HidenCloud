@@ -88,9 +88,17 @@ jobs:
           echo "::notice::📅 当前到期时间: $DUE_DATE"
 
       - name: 修改下次 Cron 时间
-        if: success() && steps.extract_due.outputs.skip_update != 'true' && ${{ secrets.REPO_TOKEN != '' }}
+        if: success() && steps.extract_due.outputs.skip_update != 'true'
+        env:
+          REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
         run: |
           set -e
+
+          # 未配置 REPO_TOKEN 则跳过（if 中不能直接引用 secrets 上下文）
+          if [ -z "$REPO_TOKEN" ]; then
+            echo "::warning::未配置 REPO_TOKEN，跳过自动更新 Cron"
+            exit 0
+          fi
 
           DUE_DATE="${{ steps.extract_due.outputs.due_date }}"
           echo "📅 当前到期时间: $DUE_DATE"
@@ -122,7 +130,7 @@ jobs:
           echo "::notice::⏰ 下次运行: $NEXT_DATE UTC"
           echo "::notice::📟 新 Cron: $NEW_CRON"
 
-          git clone https://x-access-token:${{ secrets.REPO_TOKEN }}@github.com/${{ github.repository }}.git workflow_repo
+          git clone https://x-access-token:${REPO_TOKEN}@github.com/${{ github.repository }}.git workflow_repo
           cd workflow_repo
 
           WORKFLOW_FILE=".github/workflows/renew.yml"
